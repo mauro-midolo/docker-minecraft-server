@@ -5,4 +5,4 @@ RUN wget https://launcher.mojang.com/v1/objects/bb2b6b1aefcd70dfd1892149ac3a215f
 FROM alpine:3.9.5
 RUN apk add openjdk8-jre
 USER minecraft-user
-COPY download:/server.jar ./server.jar
+COPY --from=download /server.jar ./server.jar
