@@ -7,6 +7,10 @@ RUN apk add openjdk8-jre
 RUN adduser minecraft-user -D
 USER minecraft-user
 WORKDIR /home/minecraft-user
+
 COPY --from=download /server.jar ./server.jar
 COPY eula.txt ./eula.txt
+
+EXPOSE 25565
+
 CMD ["java" ,"-jar", "server.jar", "nogui"]
