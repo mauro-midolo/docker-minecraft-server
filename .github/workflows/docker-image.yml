@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: minecraft-server Image Build
 
 on:
   push:
