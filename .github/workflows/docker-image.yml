@@ -2,10 +2,7 @@ name: minecraft-server Image Build
 
 on:
   push:
-    branches: [ "master" ]
     tags: [ "v*" ]
-  pull_request:
-    branches: [ "master" ]
 
 jobs:
   build:
