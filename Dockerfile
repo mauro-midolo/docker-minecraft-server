@@ -1,6 +1,6 @@
 FROM alpine:3.9.5 as download
 RUN apk add wget
-RUN wget https://launcher.mojang.com/v1/objects/bb2b6b1aefcd70dfd1892149ac3a215f6c636b07/server.jar --output-document=/server.jar
+RUN wget https://piston-data.mojang.com/v1/objects/4707d00eb834b446575d89a61a11b5d548d8c001/server.jar --output-document=/server.jar
 
 FROM alpine:3.9.5
 RUN apk add openjdk8-jre
