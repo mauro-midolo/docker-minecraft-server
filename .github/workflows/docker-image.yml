@@ -2,30 +2,46 @@ name: minecraft-server Image Build
 
 on:
   push:
-    tags: ["v*"]
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
 
-      - name: Extract MC version from git tag
-        id: mcver
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute versions (MC + revision)
+        id: versions
         shell: bash
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          VER="${TAG#v}"
+          set -euo pipefail
 
-          # Validazione base: almeno X.Y (meglio X.Y.Z)
-          if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "Tag non valido: $TAG (atteso vX.Y o vX.Y.Z)"
+          MC_VERSION="$(cat mc-version.txt | tr -d ' \t\r\n')"
+          if [[ -z "$MC_VERSION" ]]; then
+            echo "mc-version.txt è vuoto"
             exit 1
           fi
 
-          echo "version=$VER" >> "$GITHUB_OUTPUT"
-          echo "MC_VERSION=$VER"
+          # Commit in cui mc-version.txt è stato modificato l'ultima volta
+          BASE_COMMIT="$(git log -n 1 --format=%H -- mc-version.txt)"
+
+          # Numero di commit dopo BASE_COMMIT fino a HEAD -> revision
+          REVISION="$(git rev-list --count "${BASE_COMMIT}..HEAD")"
+
+          FULL_VERSION="${MC_VERSION}.${REVISION}"
+
+          echo "mc_version=$MC_VERSION" >> "$GITHUB_OUTPUT"
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
+          echo "full_version=$FULL_VERSION" >> "$GITHUB_OUTPUT"
+
+          echo "MC_VERSION=$MC_VERSION"
+          echo "REVISION=$REVISION"
+          echo "FULL_VERSION=$FULL_VERSION"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -36,22 +52,14 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: mauromidolo/minecraft-server
-          tags: |
-            type=ref,event=tag
-            # opzionale: pubblica anche :latest quando tagghi una versione
-            type=raw,value=latest
-
-      - name: Build and push Docker image
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           build-args: |
-            MC_VERSION=${{ steps.mcver.outputs.version }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+            MC_VERSION=${{ steps.versions.outputs.mc_version }}
+          tags: |
+            mauromidolo/minecraft-server:${{ steps.versions.outputs.full_version }}
+            mauromidolo/minecraft-server:${{ steps.versions.outputs.mc_version }}
+            mauromidolo/minecraft-server:latest
