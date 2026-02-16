@@ -2,36 +2,56 @@ name: minecraft-server Image Build
 
 on:
   push:
-    tags: [ "v*" ]
+    tags: ["v*"]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Extract MC version from git tag
+        id: mcver
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
 
-    - name: Extract metadata (tags, labels) for Docker
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: mauromidolo/minecraft-server
-        # Se il push è dovuto a un tag (es. "v0.9.5"), verrà usato tale tag,
-        # mentre per i push sul branch verrà usato il nome del branch.
-        tags: |
-          type=ref,event=tag
-          type=ref,event=branch
+          # Validazione base: almeno X.Y (meglio X.Y.Z)
+          if [[ ! "$VER" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Tag non valido: $TAG (atteso vX.Y o vX.Y.Z)"
+            exit 1
+          fi
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v6
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "MC_VERSION=$VER"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: mauromidolo/minecraft-server
+          tags: |
+            type=ref,event=tag
+            # opzionale: pubblica anche :latest quando tagghi una versione
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            MC_VERSION=${{ steps.mcver.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
