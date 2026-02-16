@@ -3,7 +3,7 @@ name: minecraft-server Image Build
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   build:
