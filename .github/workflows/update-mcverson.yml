@@ -1,0 +1,48 @@
+name: Update Minecraft Version
+
+on:
+  schedule:
+    - cron: "0 0 * * 1"   # ogni lunedì alle 00:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Fetch latest Minecraft release
+        id: fetch
+        run: |
+          set -euo pipefail
+
+          LATEST_VERSION=$(curl -s https://launchermeta.mojang.com/mc/game/version_manifest.json \
+            | jq -r '.latest.release')
+
+          CURRENT_VERSION=$(tr -d ' \t\r\n' < mc-version.txt)
+
+          echo "Latest:  $LATEST_VERSION"
+          echo "Current: $CURRENT_VERSION"
+
+          echo "latest=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update mc-version.txt if needed
+        if: steps.fetch.outputs.latest != steps.fetch.outputs.current
+        run: |
+          echo "${{ steps.fetch.outputs.latest }}" > mc-version.txt
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add mc-version.txt
+          git commit -m "chore: update Minecraft version to ${{ steps.fetch.outputs.latest }}"
+          git push
