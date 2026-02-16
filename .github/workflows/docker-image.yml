@@ -4,12 +4,19 @@ on:
   push:
     branches:
       - master
+  workflow_run:
+    workflows: ["Update Minecraft Version"]
+    types:
+      - completed
 
 permissions:
   contents: write
 
 jobs:
   build:
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +38,7 @@ jobs:
           fi
 
           BASE_COMMIT="$(git log -n 1 --format=%H -- mc-version.txt)"
-          REVISION="$(git rev-list --count "${BASE_COMMIT}..HEAD")"
+          REVISION="$(( $(git rev-list --count "${BASE_COMMIT}..HEAD") + 1 ))"
 
           FULL_VERSION="${MC_VERSION}.${REVISION}"
           TAG="v${FULL_VERSION}"
