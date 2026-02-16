@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+permissions:
+  contents: write   # necessario per tag + release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,27 +24,27 @@ jobs:
         run: |
           set -euo pipefail
 
-          MC_VERSION="$(cat mc-version.txt | tr -d ' \t\r\n')"
+          MC_VERSION="$(tr -d ' \t\r\n' < mc-version.txt)"
           if [[ -z "$MC_VERSION" ]]; then
             echo "mc-version.txt è vuoto"
             exit 1
           fi
 
-          # Commit in cui mc-version.txt è stato modificato l'ultima volta
           BASE_COMMIT="$(git log -n 1 --format=%H -- mc-version.txt)"
-
-          # Numero di commit dopo BASE_COMMIT fino a HEAD -> revision
           REVISION="$(git rev-list --count "${BASE_COMMIT}..HEAD")"
 
           FULL_VERSION="${MC_VERSION}.${REVISION}"
+          TAG="v${FULL_VERSION}"
 
           echo "mc_version=$MC_VERSION" >> "$GITHUB_OUTPUT"
           echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
           echo "full_version=$FULL_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
           echo "MC_VERSION=$MC_VERSION"
           echo "REVISION=$REVISION"
           echo "FULL_VERSION=$FULL_VERSION"
+          echo "TAG=$TAG"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,3 +66,29 @@ jobs:
             mauromidolo/minecraft-server:${{ steps.versions.outputs.full_version }}
             mauromidolo/minecraft-server:${{ steps.versions.outputs.mc_version }}
             mauromidolo/minecraft-server:latest
+
+      # Crea TAG su GitHub (solo se non esiste già)
+      - name: Create git tag (if missing)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.versions.outputs.tag }}"
+
+          git fetch --tags
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG già esistente, salto."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      # Crea GitHub Release (se non esiste già)
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versions.outputs.tag }}
+          name: ${{ steps.versions.outputs.tag }}
+          generate_release_notes: true
